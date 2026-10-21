@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Admin } from "./components/Admin";
-import { getApiError } from "./lib/api";
+import { API_BASE_URL, getApiError } from "./lib/api";
 import { login, logout as logoutRequest, register } from "./lib/api/auth";
 import { createOrder, getOrders } from "./lib/api/orders";
 import {
@@ -81,7 +81,7 @@ export default function Home() {
   const authBackdropPressed = useRef(false);
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [username, setUsername] = useState("");
-  const [authenticatedUsername, setAuthenticatedUsername] = useState("");
+  const [authenticatedUserLabel, setAuthenticatedUserLabel] = useState("");
   const [logoutBusy, setLogoutBusy] = useState(false);
   const [userRole, setUserRole] = useState<UserInfo["role"] | null>(null);
   const [password, setPassword] = useState("");
@@ -96,7 +96,7 @@ export default function Home() {
       })
       .then((profile) => {
         if (!cancelled) {
-          setAuthenticatedUsername(profile.username);
+          setAuthenticatedUserLabel(profile.email || profile.username);
           setUserRole(profile.role);
           setBalance(profile.balance);
         }
@@ -140,7 +140,7 @@ export default function Home() {
     };
   }, [productPage, productRefresh]);
   useEffect(() => {
-    if (tab !== "orders" || !authenticatedUsername) return;
+    if (tab !== "orders" || !authenticatedUserLabel) return;
     let cancelled = false;
     setOrdersLoading(true);
     setOrdersError("");
@@ -172,7 +172,7 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [tab, ordersRefresh, authenticatedUsername]);
+  }, [tab, ordersRefresh, authenticatedUserLabel]);
   const visible = useMemo(
     () =>
       products.filter(
@@ -189,7 +189,7 @@ export default function Home() {
     window.setTimeout(() => setToast(""), 3200);
   };
   const openTopup = () => {
-    if (!authenticatedUsername) {
+    if (!authenticatedUserLabel) {
       setAuthMode("login");
       setAuthError("");
       setAuthOpen(true);
@@ -231,13 +231,14 @@ export default function Home() {
             "เข้าสู่ระบบสำเร็จ แต่โหลดข้อมูลผู้ใช้ไม่สำเร็จ กรุณาลองอีกครั้ง",
           );
         const profile = (await profileResponse.json()) as UserInfo;
-        setAuthenticatedUsername(profile.username);
+        const userLabel = profile.email || profile.username;
+        setAuthenticatedUserLabel(userLabel);
         setUserRole(profile.role);
         setBalance(profile.balance);
         setOrders([]);
         setOrdersError("");
         setOrdersRefresh((value) => value + 1);
-        notify(`เข้าสู่ระบบสำเร็จ ยินดีต้อนรับ ${profile.username}`);
+        notify(`เข้าสู่ระบบสำเร็จ ยินดีต้อนรับ ${userLabel}`);
         setAuthOpen(false);
         setPassword("");
       }
@@ -260,7 +261,7 @@ export default function Home() {
         throw new Error(
           await getApiError(response, "ออกจากระบบไม่สำเร็จ กรุณาลองอีกครั้ง"),
         );
-      setAuthenticatedUsername("");
+      setAuthenticatedUserLabel("");
       setUserRole(null);
       setBalance(0);
       setOrders([]);
@@ -368,7 +369,7 @@ export default function Home() {
         const profileResponse = await getCurrentUser();
         if (profileResponse.ok) {
           const profile = (await profileResponse.json()) as UserInfo;
-          setAuthenticatedUsername(profile.username);
+          setAuthenticatedUserLabel(profile.email || profile.username);
           setUserRole(profile.role);
           setBalance(profile.balance);
         }
@@ -388,10 +389,10 @@ export default function Home() {
   };
   const nav = [
     { id: "store", label: "ร้านค้า", Icon: ShoppingBag },
-    ...(authenticatedUsername
+    ...(authenticatedUserLabel
       ? [{ id: "topup", label: "เติมเงิน", Icon: Wallet }]
       : []),
-    ...(authenticatedUsername
+    ...(authenticatedUserLabel
       ? [{ id: "orders", label: "คลัง", Icon: KeyRound }]
       : []),
     ...(userRole === "ADMIN"
@@ -447,14 +448,14 @@ export default function Home() {
               </button>
             ))}
             <div className="nav-divider" />
-            {authenticatedUsername ? (
+            {authenticatedUserLabel ? (
               <div className="account">
                 <span className="avatar">
-                  {authenticatedUsername.slice(0, 2).toUpperCase()}
+                  {authenticatedUserLabel.slice(0, 2).toUpperCase()}
                 </span>
                 <span className="account-meta">
                   <b>
-                    {authenticatedUsername}
+                    {authenticatedUserLabel}
                     {userRole === "ADMIN" && <i>ADMIN</i>}
                   </b>
                   <small>
@@ -659,7 +660,7 @@ export default function Home() {
                           </span>
                         ))}
                       </div>
-                      {authenticatedUsername && (
+                      {authenticatedUserLabel && (
                         <span className={`stock ${p.stock ? "" : "soldout"}`}>
                           <i />{" "}
                           {p.stock ? `พร้อมส่ง ${p.stock} ชิ้น` : "สินค้าหมด"}
@@ -737,7 +738,7 @@ export default function Home() {
         </main>
       )}
 
-      {tab === "topup" && authenticatedUsername && (
+      {tab === "topup" && authenticatedUserLabel && (
         <main className="container inner-page">
           <div className="page-heading">
             <div className="big-icon green">
@@ -827,7 +828,7 @@ export default function Home() {
         </main>
       )}
 
-      {tab === "orders" && authenticatedUsername && (
+      {tab === "orders" && authenticatedUserLabel && (
         <main className="container inner-page">
           <div className="page-heading">
             <div className="big-icon purple">
@@ -988,6 +989,39 @@ export default function Home() {
                 ? "เข้าสู่ระบบเพื่อจัดการคำสั่งซื้อและวอลเล็ต"
                 : "สมัครสมาชิกเพื่อเริ่มต้นใช้งาน EzyShop"}
             </p>
+            {authMode === "login" && (
+              <button
+                className="google-login"
+                type="button"
+                onClick={() =>
+                  window.location.assign(`${API_BASE_URL}/auth/login/google`)
+                }
+              >
+                <svg
+                  className="google-mark"
+                  aria-hidden="true"
+                  viewBox="0 0 48 48"
+                >
+                  <path
+                    fill="#EA4335"
+                    d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5Z"
+                  />
+                  <path
+                    fill="#4285F4"
+                    d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.9c-.58 2.96-2.26 5.48-4.77 7.18l7.73 6C44.37 37.93 46.98 31.84 46.98 24.55Z"
+                  />
+                  <path
+                    fill="#FBBC05"
+                    d="M10.53 28.59a14.4 14.4 0 0 1 0-9.18l-7.98-6.19a24 24 0 0 0 0 21.56l7.98-6.19Z"
+                  />
+                  <path
+                    fill="#34A853"
+                    d="M24 48c6.48 0 11.93-2.13 15.9-5.8l-7.73-6c-2.14 1.44-4.89 2.3-8.17 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48Z"
+                  />
+                </svg>
+                เข้าสู่ระบบด้วย Google
+              </button>
+            )}
             <form onSubmit={submitAuth} className="auth-form">
               <label>
                 ชื่อผู้ใช้
@@ -1084,7 +1118,7 @@ export default function Home() {
             <label className="quantity-control">
               <span>
                 จำนวน{" "}
-                {authenticatedUsername && (
+                {authenticatedUserLabel && (
                   <small>(มี {selected.stock} ชิ้น)</small>
                 )}
               </span>

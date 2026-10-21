@@ -45,6 +45,7 @@ export type Order = {
 export type UserInfo = {
   balance: number;
   createdAt: string;
+  email: string | null;
   id: string;
   role: "USER" | "ADMIN";
   username: string;
